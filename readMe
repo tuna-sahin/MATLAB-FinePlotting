@@ -1,1 +1,4 @@
-These matlab function files provide a nice way of plotting your graphs. Everything is a work in progress but these functions still offer easy to use aesthetic plots.
+These MATLAB functions provide a nice way of plotting your graphs. 
+Most of these functions are a work in progress. 
+I am proud to announce that fineplot and finestem are mostly finished. Most edge cases have been compensated for. (I recommend that you do not use size < 300)
+
