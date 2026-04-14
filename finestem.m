@@ -11,107 +11,231 @@ function plot_n = finestem(x,y,titlename,xaxisname,yaxisname,xlimits,ylimits,hol
         titlename string = ''
         xaxisname string = ''
         yaxisname string = ''
-        xlimits (1,2) double = [min(x) max(x)]
-        ylimits (1,2) double = [min(y) max(y)]
+        xlimits double = []
+        ylimits double = []
         holdstate string = 'off'
         size (1,2) double = [400 400];
         legendName string = ''
-        style = 'k--'
+        style = '-'
     end
 
-    %even if the limits are reverse this section corrects the order
-    if ylimits(1) > ylimits(2)
-        ylimits = [ylimits(2) ylimits(1)];
-    end
-    if xlimits(1) > xlimits(2)
-        xlimits = [xlimits(2) xlimits(1)];
-    end
-
-    %these measures are necessary for positioning arrows, labels etc. 
-    dx = ((xlimits(2)-xlimits(1))/65);
-    dy = ((ylimits(2)-ylimits(1))/85);
-
-    %this section is to not plot values that overlap with the arrows
-    lowindex = 1;
-    highindex = length(x);
-    for i = x   
-        if (i > xlimits(1) + dx) && (lowindex == 1)
-            lowindex = find(x==i);
-        end
-        if (i > xlimits(2) - dx) && (highindex == 1)
-            highindex = find(x==i)-1;
-        end
-    end
-    if x(lowindex) > 0 %we allow points to be drawn at the origin
-        lowindex = lowindex - 1;
-    end
+    %parameters
+    difference_x = max(x) - min(x);
+    difference_y = max(y) - min(y);
+    pos = gca().Position;
+    figpos = gcf().Position;
+    scale = min(figpos(3), figpos(4)) / 500;   % 400 is a reference size
     
-    if x(highindex) < 0 %we allow points to be drawn at the origin
-        highindex = highindex + 1;
+
+    %========================
+    %automatically set limits
+    %========================
+    if isempty(xlimits)
+        xlimits = [min(x)-difference_x/10 max(x)+difference_x/10];
+        if xlimits(1) > -arrow_length_x && min(x) > 0
+            xlimits(1) = 0;
+        end
+        if xlimits(2) < arrow_length_y && max(x) < 0
+            xlimits(2) = 0;
+        end
     end
 
+    if isempty(ylimits)
+        ylimits = [min(y)-difference_y/10 max(y)+difference_y/10];
+        if ylimits(2) < arrow_length_y && max(y) < 0
+            ylimits(2) = 0;
+        end
+        if ylimits(1) > -arrow_length_y && min(y) > 0
+            ylimits(1) = 0;
+        end
+    end
+
+    ylimits = sort(ylimits); %makes it so that order does not matter
+    xlimits = sort(xlimits); %makes it so that order does not matter    
+    
+    %=======================================================================
+    %prevent secondary exponential axis labels from messing with the scaling
+    %=======================================================================
+    expX = max(floor(log10(abs(xlimits))));
+    expY = max(floor(log10(abs(ylimits))));
+    if expX < 3
+        expX = 0;
+    end
+    if expY < 3
+        expY = 0;
+    end
+
+    if expX ~= 0
+        x = x / (10^expX);
+        xlimits = xlimits / (10^expX);
+    end
+    if expY ~= 0
+        y = y / (10^expY);
+        ylimits = ylimits / (10^expY);
+    end
+
+    difference_x = xlimits(2) - xlimits(1);
+    difference_y = ylimits(2) - ylimits(1);
+    arrow_length_x = difference_x * 0.03;
+    arrow_length_y = difference_y * 0.03;
+    %==================================================
     %this section is responsible for axis configuration
+    %==================================================
     plot_n = stem(x,y,style,'filled','MarkerSize',3,'DisplayName',legendName);
-    xlim(xlimits)
-    ylim(ylimits)
-    set(get(gca,'XLabel'),'Visible','on')
-    set(gca,'XAxisLocation','origin', 'box','off')
-    set(gca,'YAxisLocation','origin')
-    set(get(gca, 'XAxis'), 'FontWeight', 'bold')
+
+    xlim(xlimits);
+    ylim(ylimits);
+    set(get(gca,'XLabel'),'Visible','on');
+    set(gca,'XAxisLocation','origin', 'box','off');
+    set(gca,'YAxisLocation','origin');
+    set(get(gca, 'XAxis'), 'FontWeight', 'bold');
     set(get(gca, 'YAxis'), 'FontWeight', 'bold');
-    set(get(gca,'YLabel'),'Visible','on')
-    set(gca,'Layer','top')
-    set(gcf,'position',[(xlimits(2)-xlimits(1))/2 , (ylimits(2)-ylimits(1))/2 , size(1) , size(2)])
+    set(get(gca,'YLabel'),'Visible','on');
+    set(gca,'Layer','top');
+
+    scr = get(0,'ScreenSize');
+    set(gcf,'position',[(scr(3)-size(1))/2, (scr(4)-size(2))/2, size(1) , size(2)]);
     
-    %deletes the ticks that overlap with arrows
+    
+    %===============================================================================
+    %arrows for axes. makes sure we dont plot arrows on the wrong side of the origin
+    %===============================================================================
+    origin = [map_0(xlimits(2),xlimits(1),pos(1)+pos(3),pos(1)) map_0(ylimits(2),ylimits(1),pos(2)+pos(4),pos(2))];
+    
+    if xlimits(2) > arrow_length_x
+        if xlimits(1) < -arrow_length_x
+            a1 = annotation(gcf,"arrow",[pos(1)+0.5*pos(3) pos(1)+pos(3)],[origin(2) origin(2)]);%east
+        else
+            a1 = annotation(gcf,"arrow",[pos(1) pos(1)+pos(3)],[origin(2) origin(2)]);%east
+        end
+        a1.HeadLength = 10 * scale;
+        a1.HeadWidth  = 10 * scale;
+        a1.LineWidth  = 1.5 * scale;
+    end
+    if ylimits(2) > arrow_length_y
+        if ylimits(1) < -arrow_length_y
+            a2 = annotation(gcf,"arrow",[origin(1) origin(1)],[pos(2)+0.5*pos(4) pos(2)+pos(4)]);%north
+        else
+            a2 = annotation(gcf,"arrow",[origin(1) origin(1)],[pos(2) pos(2)+pos(4)]);%north
+        end
+        a2.HeadLength = 10 * scale;
+        a2.HeadWidth  = 10 * scale;
+        a2.LineWidth  = 1.5 * scale;
+    end
+    if xlimits(1) < -arrow_length_x
+        if xlimits(2) > arrow_length_x
+            a3 = annotation(gcf,"arrow",[pos(1)+pos(3)*0.5 pos(1)],[origin(2) origin(2)]);%west
+        else
+            a3 = annotation(gcf,"arrow",[pos(1)+pos(3) pos(1)],[origin(2) origin(2)]);%west
+        end
+        a3.HeadLength = 10 * scale;
+        a3.HeadWidth  = 10 * scale;
+        a3.LineWidth  = 1.5 * scale;
+    end
+    if ylimits(1) < -arrow_length_y
+        if ylimits(2) > arrow_length_y
+            a4 = annotation(gcf,"arrow",[origin(1) origin(1)],[pos(2)+pos(4)*0.5 pos(2)]);%south
+        else
+            a4 = annotation(gcf,"arrow",[origin(1) origin(1)],[pos(2)+pos(4) pos(2)]);%south
+        end
+        a4.HeadLength = 10 * scale;
+        a4.HeadWidth  = 10 * scale;
+        a4.LineWidth  = 1.5 * scale;
+    end
+    
+    %=============================================
+    %prevent axis ticks from colliding with arrows
+    %=============================================
     xticks('auto');
     xt = xticks;
-    xticks(xt(2:length(xt)-1));
     yticks('auto');
     yt = yticks;
-    yticks(yt(2:length(yt)-1));
     
-    % determining the ylevel to draw the arrows on the x axis
-    if ((ylimits(1) * ylimits(2)) < 0) 
-        xal = 0;
-    elseif ylimits(1) < 0
-        xal = ylimits(2);
-    else
-        xal = ylimits(1);
+    if max(x) > 0 && abs(xt(end)-xlimits(2)) < arrow_length_x
+        xt = xt(1:end-1);
+    end
+    if max(y) > 0 && abs(yt(end)-ylimits(2)) < arrow_length_y
+        yt = yt(1:end-1);
+    end
+    if min(x) < 0 && abs(xt(1)-xlimits(1)) < arrow_length_x
+        xt = xt(2:end);
+    end
+    if min(y) < 0 && abs(yt(1)-ylimits(1)) < arrow_length_y
+        yt = yt(2:end);
+    end
+    xticks(xt);
+    yticks(yt);
+
+    %=
+    %axis exponents secondary label corrections
+    %= 
+    if expX ~= 0
+        xaxisname = strcat(xaxisname + "$\ \times 10^{" ,num2str(expX) , "}$");
+    end
+    if expY ~= 0
+        yaxisname = strcat(yaxisname + "$\ \times 10^{" ,num2str(expY) , "}$");
+    end
+    
+    ax = gca;
+    ax.XAxis.SecondaryLabel.Color = ax.Color;
+    ax.YAxis.SecondaryLabel.Color = ax.Color;
+    %=================================
+    %axis labels/title and their positioning 
+    %=================================
+    multiplier_x = 1;
+    if abs(xlimits(2)) < abs(xlimits(1))
+        multiplier_x = -1;
     end
 
-    %plotting the arrows
-    hold on
-    if xlimits(2) > 0
-        plot([(xlimits(2)-dx) xlimits(2) (xlimits(2)-dx)],[xal+dy xal xal-dy],'k') %xaxis right arrow 
+    multiplier_y = 1;
+    if abs(ylimits(2)) < abs(ylimits(1))
+        multiplier_y = -1;
     end
-    if xlimits(1) < 0
-        plot([xlimits(1)+dx xlimits(1) xlimits(1)+dx],[xal+dy xal xal-dy],'k') %xaxis left arrow 
-    end 
-    plot([0 0],[ylimits(2) ylimits(1)],'k')% y axis
-    if ylimits(2) > 0 
-        plot([-dx/2 0 dx/2],[ylimits(2)-dy ylimits(2) ylimits(2)-dy],'k') %yaxis top arrow 
-    end
-    if ylimits(1) < 0
-        plot([-dx/2 0 dx/2],[ylimits(1)+dy ylimits(1) ylimits(1)+dy],'k') %yaxis bottom arrow 
-    end
+
+    %set positions
+    xlabel_x = xlimits((xlimits(2)>0) + 1)*1.02;
+    xlabel_y = multiplier_y*difference_y*0.035 +  difference_y * 0.007 + clip(0,ylimits(1)+difference_y*0.03,ylimits(2)-difference_y*0.03);
+    xlabelpos = [xlabel_x,xlabel_y];
+
+    ylabel_x = clip(0,xlimits(1),xlimits(2)) + multiplier_x*difference_x*0.02;
+    ylabel_y = ylimits((ylimits(2)>0) + 1)*0.95 + difference_y*0.04*(sign((ylimits(2)>0)-0.5)-1);
+    ylabelpos = [ylabel_x, ylabel_y];
     
     %repositioning title & label locations
-    label_h1 = xlabel(xaxisname);
-    label_h1.Position(1) = xlimits(2)+dx; % change horizontal position of xlabel.
-    label_h1.Position(2) = dy; % change vertical position of xlabel.c5
-    label_h2 = ylabel(yaxisname,rotation=0);
-    label_h2.Position(1) = dx; % change horizontal position of ylabel.
-    label_h2.Position(2) = ylimits(2)+dy; % change vertical position of ylabel.
-    title(titlename);
-    if ((xlimits(1) * xlimits(2)) < 0) && (xlimits(1)+xlimits(2) < ((xlimits(2)-xlimits(1))/3))
-        set(get(gca,'title'),'Position', [20*dx ylimits(2)-dy]) %prevents the title from colliding with ylabel
+    
+    x_boundary = ((1 - (pos(1)+pos(3))) * xlimits(2)) / (pos(1)+pos(3)-origin(1)) + xlimits(2);
+    label_x = text(xlabelpos(1),xlabelpos(2),xaxisname,"FontSize",8 + min(size)*0.005,"HorizontalAlignment","center","VerticalAlignment","middle","Interpreter","latex");
+    ext = label_x.Extent;
+    if x_boundary < ext(1) + ext(3)
+         label_x.Position = [x_boundary,xlabelpos(2)];
+         label_x.HorizontalAlignment = "right"; %,xaxisname,"FontSize",8 + min(size)*0.005,"HorizontalAlignment","right","VerticalAlignment","middle","Interpreter","latex");
     end
+    % end
+    if multiplier_x > 0
+        label_y = text(ylabelpos(1),ylabelpos(2),yaxisname,"FontSize",8 + min(size)*0.005,"Interpreter","latex");
+    else
+        label_y = text(ylabelpos(1),ylabelpos(2),yaxisname,"FontSize",8 + min(size)*0.005,"HorizontalAlignment","right","Interpreter","latex");
+    end
+    
+    
+    
 
-    %holds or doesnt hold
+    t = title(titlename,"Interpreter","latex");
+    if ylimits(2) < 0
+        set(get(gca,'title'),'Position', [mean(xlimits),ylimits(1)-0.1*difference_y]) %prevents the title from colliding with ylabel
+    else
+        set(get(gca,'title'),'Position', [mean(xlimits),ylimits(2)+0.01*difference_y]) %prevents the title from colliding with ylabel
+    end
+    
+    
+    
+
+    grid on
+
     if strcmp(holdstate,'off')
         hold off
     else 
         hold on
     end
 end
+
